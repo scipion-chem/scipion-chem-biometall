@@ -1,0 +1,4 @@
+scipion-em
+biometall
+freesasa
+pandas

@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: scipion-em-biometall
+Version: 1.0.0
+Summary: Scipion plugin for BioMetAll metal-binding site prediction
+Home-page: 
+Author: 
+Author-email: 
+Keywords: scipion biometall metal-binding structural-biology scipion-3.0
+Requires-Dist: scipion-em
+Requires-Dist: biometall
+Requires-Dist: freesasa
+Requires-Dist: pandas
+
+
+Scipion plugin for BioMetAll
+============================
+
+BioMetAll predicts metal-binding sites in proteins from backbone
+preorganization geometry.
+
+Reference: Sanchez-Aparicio et al., JCIM 2021.
+DOI: 10.1021/acs.jcim.0c00827
