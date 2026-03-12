@@ -1,4 +1,3 @@
 #!/usr/bin/python3
 
-BIOMETALL_HOME = 'BIOMETALL_HOME'
-V1_0 = '1.0'
+BIOMETALL_DIC = {'name': 'biometall', 'version': '1.0', 'home': 'BIOMETALL_HOME'}

@@ -5,6 +5,7 @@ from pyworkflow.protocol import Protocol, params
 from pyworkflow import BETA
 import pwem.objects as emobj
 from scipionbiometall import Plugin
+from scipionbiometall.constants import BIOMETALL_DIC
 
 
 class ProtBioMetAll(Protocol):
@@ -143,9 +144,13 @@ class ProtBioMetAll(Protocol):
             if motif:
                 args += ' --motif [%s]' % motif
 
-        Plugin.runBioMetAll(self, args, cwd=self._getTmpPath())
-
-        Plugin.runBioMetAll(self, args, cwd=self._getTmpPath())
+        Plugin.runCondaCommand(
+            self,
+            args=args,
+            condaDic=BIOMETALL_DIC,
+            program="biometall",
+            cwd=os.path.abspath(Plugin.getVar(BIOMETALL_DIC['home']))
+        )
 
         import glob
         import shutil

@@ -1,37 +1,44 @@
 #!/usr/bin/python3
 
-import os
-import pwem
-import pyworkflow.utils as pwutils
+from scipion.install.funcs import InstallHelper
 from .constants import *
+from pwchem import Plugin as pwchemPlugin
 
 _logo = "logo.png"
 _references = ['SanchezAparicio2021']
 
-class Plugin(pwem.Plugin):
-    _homeVar = BIOMETALL_HOME
-    _supportedVersions = [V1_0]
-
+class Plugin(pwchemPlugin):
     @classmethod
     def _defineVariables(cls):
-        cls._defineEmVar(BIOMETALL_HOME, 'biometall-1.0')
-
-    @classmethod
-    def getEnviron(cls):
-        environ = pwutils.Environ(os.environ.copy())
-        environ.update({
-            'PATH': '/home/vboxuser/miniconda3/envs/scipion3/bin'
-        }, position=pwutils.Environ.BEGIN)
-        return environ
+        cls._defineEmVar(BIOMETALL_DIC['home'], cls.getEnvName(BIOMETALL_DIC))
 
     @classmethod
     def defineBinaries(cls, env):
-        pass
+        cls.addBioMetAllPackage(env)
 
     @classmethod
-    def runBioMetAll (cls, protocol, args, cwd=None):
-        protocol.runJob('biometall', args, env=cls.getEnviron(), cwd=cwd)
+    def addBioMetAllPackage(cls, env, default=True):
+        installer = InstallHelper(
+            BIOMETALL_DIC['name'],
+            packageHome=cls.getVar(BIOMETALL_DIC['home']),
+            packageVersion=BIOMETALL_DIC['version']
+        )
+        installer.getCondaEnvCommand(
+            BIOMETALL_DIC['name'],
+            binaryVersion=BIOMETALL_DIC['version'],
+            pythonVersion='3.11'
+        ).addCommand(
+            f"{cls.getEnvActivationCommand(BIOMETALL_DIC)} && "
+            "pip install biometall==1.0 freesasa pandas",
+            f"{BIOMETALL_DIC['name']}_installed"
+        )
+        installer.addPackage(
+            env,
+            dependencies=['conda', 'pip', 'git'],
+            default=default
+        )
 
-
+from pyworkflow.plugin import Domain
+Domain.registerPlugin(__name__)
 
 
