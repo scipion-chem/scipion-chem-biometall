@@ -20,8 +20,8 @@ setup(
     packages=find_packages(),
     install_requires=['biometall', 'freesasa', 'pandas'],
     package_data={
-        'scipionbiometall': ['protocols.conf'],
+        'biometall': ['protocols.conf'],
     },
     entry_points={
-        'pyworkflow.plugin': 'scipionbiometall = scipionbiometall'},
+        'pyworkflow.plugin': 'biometall = biometall'},
 )

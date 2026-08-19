@@ -38,7 +38,4 @@ class Plugin(pwchemPlugin):
             default=default
         )
 
-from pyworkflow.plugin import Domain
-Domain.registerPlugin(__name__)
-
 

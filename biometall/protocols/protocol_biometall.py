@@ -1,25 +1,22 @@
-#!/usr/bin/python3
-
 import os
+import glob
+import shutil
+from pwem.protocols import EMProtocol
 from pyworkflow.protocol import Protocol, params
 from pyworkflow import BETA
 import pwem.objects as emobj
-from scipionbiometall import Plugin
-from scipionbiometall.constants import BIOMETALL_DIC
+from biometall import Plugin
+from biometall.constants import BIOMETALL_DIC
 
 
-class ProtBioMetAll(Protocol):
+class ProtBioMetAll(EMProtocol):
     _label = 'predict metal binding sites'
-    _devStatus = BETA
-
-    def  __init__(self, **kwargs):
-        Protocol.__init__(self, **kwargs)
 
     def _defineParams(self, form):
         form.addSection(label='Input')
         form.addParam('inputStructure', params.PointerParam,
                       pointerClass='AtomStruct',
-                      label='Input protein structure',
+                      label='Input structure: ',
                       important=True,
                       help='PDB structure on which BioMetAll will search'
                             'for metal coordination sites.')
@@ -27,19 +24,19 @@ class ProtBioMetAll(Protocol):
         form.addSection(label='Basic options')
         form.addParam('residues', params.StringParam,
                       default = 'HIS,CYS,ASP,GLU',
-                      label='Coordinating residues',
+                      label='Coordinating residues: ',
                       help='Residue types BioMetAll will consider as potential'
                            'metal coordinators. Comma-separated three letter codes.'
                            'Default: HIS,CYS,ASP,GLU')
         form.addParam('minCoordinators', params.IntParam,
                       default= 3,
-                      label='Minimum coordinating residues',
+                      label='Minimum coordinating residues: ',
                       help='Minimum number of coordinating residues'
                             'required to consider a site valid.'
                             'Higher values = higher confidence sites.')
         form.addParam('cutoff', params.FloatParam,
                       default= 0.0,
-                      label='Cutoff fraction',
+                      label='Cutoff fraction: ',
                       help='Filters results, keeping only the top'
                             'fraction by probe count.\n'
                             '0.0 = shows all results. \n'
@@ -48,14 +45,14 @@ class ProtBioMetAll(Protocol):
         form.addSection(label='Backbone')
         form.addParam('useBackbone', params.BooleanParam,
                       default=False,
-                      label='Include backbone oxygens',
+                      label='Include backbone oxygens: ',
                       help= 'By default BioMetAll considers sidechain atoms.'
                             'Enable this option to include backbone carbonyl oxygens'
                             'as potential coordination donors.')
         form.addParam('backboneResidues', params.StringParam,
                       default='ALL',
                       condition='useBackbone',
-                      label='Backbone residues',
+                      label='Backbone residues: ',
                       help='Residues whose backbone oxygens will be included.\n'
                            'ALL = every residue.\n'
                            'Or a comma-separated list of residues: HIS,CYS,ASP')
@@ -63,7 +60,7 @@ class ProtBioMetAll(Protocol):
         form.addSection(label='Search zone')
         form.addParam('useSearchZone', params.BooleanParam,
                       default=False,
-                      label='Restrict search to a sphere',
+                      label='Restrict search to a sphere: ',
                       help= 'By default BioMetAll builds a probe grid covering'
                             'the entire protein. \n'
                             'Enable this to restrict search to a sphere'
@@ -71,19 +68,19 @@ class ProtBioMetAll(Protocol):
         form.addParam('center', params.StringParam,
                       default='',
                       condition='useSearchZone',
-                      label='Sphere center',
+                      label='Sphere center: ',
                       help= 'XYZ coordinates of the sphere centre.\n'
                             'Format: x,y,z (no spaces).\n'
                             'Example: 84.98,42.82,16.04')
         form.addParam('radius', params.FloatParam,
                       default=10.0,
                       condition='useSearchZone',
-                      label='Sphere radius (Angstrom)',
+                      label='Sphere radius (Angstrom): ',
                       help= 'Radius in Angstroms of the search sphere.\n'
                             'Default: 10.0 A. Aprox 3-4 residues from the centre.')
         form.addParam('grid', params.FloatParam,
                       default=1.0,
-                      label= 'Grid spacing (Angstrom)',
+                      label= 'Grid spacing (Angstrom): ',
                       help='Distance in Angstroms between probe grid points.\n'
                            '1.0 A = standard resolution (default).\n'
                            '0.5 A = higher detail, longer computation.\n')
@@ -91,13 +88,13 @@ class ProtBioMetAll(Protocol):
         form.addSection(label= 'Motif')
         form.addParam('useMotif', params.BooleanParam,
                       default=False,
-                      label='Search for a specific motif',
+                      label='Search for a specific motif: ',
                       help='Instead of finding any coordination site, search'
                            'for specific pattern of coordinating residues.')
         form.addParam('motif', params.StringParam,
                       default='',
                       condition='useMotif',
-                      label= 'Motif [AA,AA...]',
+                      label= 'Motif [AA,AA...]: ',
                       help= 'Coordination motif to search for.\n'
                             'Format: three letter codes comma-separated.\n'
                             'Examples:\n'
@@ -152,8 +149,7 @@ class ProtBioMetAll(Protocol):
             cwd=os.path.abspath(Plugin.getVar(BIOMETALL_DIC['home']))
         )
 
-        import glob
-        import shutil
+
         probesFiles = glob.glob(os.path.join(self._getTmpPath(), 'probes_*.pdb'))
         if probesFiles:
             shutil.move(probesFiles[0], self._getTmpPath('probes_input.pdb'))
