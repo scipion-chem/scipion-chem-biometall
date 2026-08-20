@@ -1,10 +1,10 @@
 =======================
-ADMET-AI plugin
+BioMetAll plugin
 =======================
 
 **Documentation under development, sorry for the inconvenience**
 
-This is a **Scipion** plugin that offers `ADMET-AI <https://github.com/swansonk14/admet_ai>`_ 
+This is a **Scipion** plugin that offers `BioMetAll <https://biometall.readthedocs.io/en/latest/index.html>`_ 
 
 
 ==========================
@@ -18,7 +18,7 @@ You will need to first install
 
 1. **Install the plugin in Scipion**
 
-ADMET-AI is installed automatically by scipion.
+BioMetAll is installed automatically by scipion.
 
 - **Install the stable version (Not available yet)**
 
@@ -28,7 +28,7 @@ ADMET-AI is installed automatically by scipion.
 
 .. code-block::
 
-    scipion3 installp -p scipion-chem-admetai
+    scipion3 installp -p scipion-chem-biometall
 
 
 - **Developer's version**
@@ -37,24 +37,24 @@ ADMET-AI is installed automatically by scipion.
 
     .. code-block::
 
-        git clone https://github.com/scipion-chem/scipion-chem-admetai.git
+        git clone https://github.com/scipion-chem/scipion-chem-biometall.git
 
     2. **Switch to the desired branch** (master or devel):
 
-    Scipion-chem-admetai is constantly under development and including new features.
+    Scipion-chem-biometall is constantly under development and including new features.
     If you want a relatively older an more stable version, use master branch (default).
     If you want the latest changes and developments, user devel branch.
 
     .. code-block::
 
-                cd scipion-chem-admetai
+                cd scipion-chem-biometall
                 git checkout devel
 
     3. **Install**:
 
     .. code-block::
 
-        scipion3 installp -p path_to_scipion-chem-admetai --devel
+        scipion3 installp -p path_to_scipion-chem-biometall --devel
 
 
 
