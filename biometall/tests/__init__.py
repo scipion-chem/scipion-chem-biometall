@@ -23,3 +23,4 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
+from .test_biometall import *
