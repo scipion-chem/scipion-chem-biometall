@@ -1,6 +1,7 @@
 # **************************************************************************
 # *
 # * Authors:   Blanca Pueche (blanca.pueche@cnb.csis.es)
+# *            Eduardo Rivas (eduardo.rivas@autonoma.cat)
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
