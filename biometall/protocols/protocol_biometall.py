@@ -40,6 +40,45 @@ from pwchem.objects import SetOfStructROIs, StructROI
 
 
 class ProtBioMetAll(EMProtocol):
+    """
+     Predicts potential metal-binding sites in a protein structure using
+     BioMetAll.
+
+     BioMetAll identifies candidate metal coordination sites by searching
+     the protein structure for spatial arrangements of coordinating residues
+     around a three-dimensional probe grid. Candidate sites can be filtered
+     according to the number of coordinating residues and probe density.
+
+     The protocol accepts PDB or mmCIF structures and converts mmCIF inputs
+     to PDB format before running BioMetAll. The resulting coordination
+     solutions are split into individual PDB files and exposed as a
+     SetOfStructROIs, where each StructROI represents one predicted
+     metal-binding site and retains a reference to the input protein
+     structure.
+
+     The search can be customized using the following options:
+
+     - Coordinating residues: residue types considered as potential metal
+       coordination donors. By default, HIS, CYS, ASP and GLU are used.
+     - Minimum coordinating residues: minimum number of coordinating
+       residues required for a candidate site.
+     - Cutoff fraction: optional filtering based on probe density, retaining
+       only the highest-ranked fraction of predicted sites.
+     - Backbone oxygens: optionally include backbone carbonyl oxygens as
+       potential coordination donors.
+     - Search zone: optionally restrict the search to a spherical region
+       defined by a center and radius.
+     - Grid spacing: distance between points in the BioMetAll probe grid.
+     - Motif search: optionally restrict the prediction to a specific
+       coordination residue motif.
+
+     Outputs:
+         outputStructROIs (SetOfStructROIs):
+             Collection of predicted metal-binding sites. Each StructROI
+             contains the corresponding BioMetAll probe structure, its
+             calculated pocket volume, and a reference to the input protein
+             structure.
+     """
     _label = 'predict metal binding sites'
 
     def _defineParams(self, form):
