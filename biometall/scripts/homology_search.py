@@ -31,8 +31,8 @@ RCSB_GRAPHQL_URL = 'https://data.rcsb.org/graphql'
 
 # Sequence-based homologue search
 
-def search_homologs(sequence, identity_cutoff=0.30, evalue_cutoff=1e-5,
-                    max_results=10, metals=None, timeout=30):
+def search_homologs(sequence, identityCutoff=0.30, evalueCutoff=1e-5,
+                    maxResults=10, metals=None, timeout=30):
     """
     Query the RCSB PDB REST API for structures homologous to *sequence* that
     contain at least one metal ion of interest.
@@ -72,8 +72,8 @@ def search_homologs(sequence, identity_cutoff=0.30, evalue_cutoff=1e-5,
                     "type": "terminal",
                     "service": "sequence",
                     "parameters": {
-                        "evalue_cutoff":   evalue_cutoff,
-                        "identity_cutoff": identity_cutoff,
+                        "evalue_cutoff":   evalueCutoff,
+                        "identity_cutoff": identityCutoff,
                         "target":          "pdb_protein_sequence",
                         "value":           sequence,
                     }
@@ -82,7 +82,7 @@ def search_homologs(sequence, identity_cutoff=0.30, evalue_cutoff=1e-5,
         },
         "return_type": "polymer_entity",
         "request_options": {
-            "paginate": {"start": 0, "rows": max_results * 3},
+            "paginate": {"start": 0, "rows": maxResults * 3},
             "results_content_type": ["experimental"],
             "sort": [{"sort_by": "score", "direction": "desc"}],
             "scoring_strategy": "sequence",
@@ -139,7 +139,7 @@ def search_homologs(sequence, identity_cutoff=0.30, evalue_cutoff=1e-5,
 
     filtered = _filter_by_metal(candidates, metals, timeout=timeout)
     filtered.sort(key=lambda h: h['identity'], reverse=True)
-    return filtered[:max_results]
+    return filtered[:maxResults]
 
 
 # Internal: metal content filter

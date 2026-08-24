@@ -264,32 +264,32 @@ class ProtMetalPlacer(EMProtocol):
             cifToPdb(filePath, outputFile)
 
     def extractSequenceStep(self):
-        original_file = self.inputStructure.get().getFileName()
-        proteinName = os.path.splitext(os.path.basename(original_file))[0]
-        structure_file = self._getExtraPath(f'{proteinName}.pdb'
+        originalFile = self.inputStructure.get().getFileName()
+        proteinName = os.path.splitext(os.path.basename(originalFile))[0]
+        structureFile = self._getExtraPath(f'{proteinName}.pdb'
                                             )
         try:
-            chain_info = json.loads(self.chainId.get())
-            chain_id = chain_info['chain']
+            chainInfo = json.loads(self.chainId.get())
+            chainId = chainInfo['chain']
         except (json.JSONDecodeError, TypeError, KeyError):
-            chain_id = self.chainId.get().strip()
+            chainId = self.chainId.get().strip()
 
-        ext = os.path.splitext(structure_file)[1].lower()
+        ext = os.path.splitext(structureFile)[1].lower()
 
         if ext in ('.cif', '.mmcif'):
             parser = MMCIFParser(QUIET=True)
         else:
             parser = PDBParser(QUIET=True)
 
-        structure = parser.get_structure('query', structure_file)
+        structure = parser.get_structure('query', structureFile)
         model = structure[0]
 
-        if chain_id not in model:
+        if chainId not in model:
             raise RuntimeError(
-                f'Chain {chain_id} not found in input structure.'
+                f'Chain {chainId} not found in input structure.'
             )
 
-        chain = model[chain_id]
+        chain = model[chainId]
 
         residues = [
             r for r in chain
@@ -298,7 +298,7 @@ class ProtMetalPlacer(EMProtocol):
 
         if not residues:
             raise RuntimeError(
-                f'No standard amino acids in chain {chain_id}.'
+                f'No standard amino acids in chain {chainId}.'
             )
 
         sequence = ''.join(
@@ -308,9 +308,9 @@ class ProtMetalPlacer(EMProtocol):
 
         state = {
             'sequence': sequence,
-            'chain_id': chain_id,
-            'pdb_path': structure_file,
-            'metals_to_place': {},
+            'chainId': chainId,
+            'pdb_path': structureFile,
+            'metalsToPlace': {},
             'homolog': None,
             'identity': None,
             'placements': [],
@@ -320,7 +320,7 @@ class ProtMetalPlacer(EMProtocol):
             json.dump(state, f)
 
         self._log.info(
-            f'Sequence: {len(sequence)} aa, chain {chain_id}.'
+            f'Sequence: {len(sequence)} aa, chain {chainId}.'
         )
 
 
@@ -329,20 +329,20 @@ class ProtMetalPlacer(EMProtocol):
             state = json.load(f)
 
         choices      = ['ANY'] + METALS_SUPPORTED
-        metal_filter = choices[self.metalFilter.get()]
+        metalFilter = choices[self.metalFilter.get()]
         metals       = (set(METALS_SUPPORTED)
-                        if metal_filter == 'ANY' else {metal_filter})
+                        if metalFilter == 'ANY' else {metalFilter})
 
         self._log.info(
             f'Searching RCSB: identity ? {self.identityCutoff.get():.0%}, '
-            f'e-value ? {self.evalueCutoff.get():.0e}, metal = {metal_filter}'
+            f'e-value ? {self.evalueCutoff.get():.0e}, metal = {metalFilter}'
         )
         try:
             hits = search_homologs(
                 sequence=state['sequence'],
-                identity_cutoff=self.identityCutoff.get(),
-                evalue_cutoff=self.evalueCutoff.get(),
-                max_results=self.maxHomologs.get(),
+                identityCutoff=self.identityCutoff.get(),
+                evalueCutoff=self.evalueCutoff.get(),
+                maxResults=self.maxHomologs.get(),
                 metals=metals,
             )
         except RuntimeError as e:
@@ -361,21 +361,21 @@ class ProtMetalPlacer(EMProtocol):
             return
 
         best         = hits[0]
-        metal_counts = best.get('metal_counts', {})
+        metalCounts = best.get('metalCounts', {})
 
         # Restrict to requested metal(s)
-        if metal_filter == 'ANY':
-            metals_to_place = metal_counts
+        if metalFilter == 'ANY':
+            metalsToPlace = metalCounts
         else:
-            metals_to_place = {metal_filter: metal_counts.get(metal_filter, 1)}
+            metalsToPlace = {metalFilter: metalCounts.get(metalFilter, 1)}
 
         self._log.info(
             f'Best homologue: {best["pdb_id"]} '
             f'(identity = {best["identity"]:.0%}, '
-            f'metals = {metals_to_place})'
+            f'metals = {metalsToPlace})'
         )
         state.update({
-            'metals_to_place': metals_to_place,
+            'metalsToPlace': metalsToPlace,
             'homolog':         best['pdb_id'],
             'identity':        best['identity'],
         })
@@ -387,8 +387,8 @@ class ProtMetalPlacer(EMProtocol):
         with open(self._getTmpPath('placer_state.json')) as f:
             state = json.load(f)
 
-        metals_to_place = state.get('metals_to_place', {})
-        if not metals_to_place:
+        metalsToPlace = state.get('metalsToPlace', {})
+        if not metalsToPlace:
             return
 
         threshold = float(self.energyThreshold.get())
@@ -399,17 +399,17 @@ class ProtMetalPlacer(EMProtocol):
                 f'MetalKB binary not found: {metalkb}\n'
             )
 
-        input_pdb = self._getTmpPath('input.pdb')
-        shutil.copy(state['pdb_path'], input_pdb)
+        inputPdb = self._getTmpPath('input.pdb')
+        shutil.copy(state['pdb_path'], inputPdb)
 
         placements        = []
-        all_placed_so_far = []   # positions of all ions placed in previous iterations
+        allPlacedSoFar = []   # positions of all ions placed in previous iterations
 
-        for metal, expected_count in metals_to_place.items():
+        for metal, expectedCount in metalsToPlace.items():
             self._log.info(
                 f'Running MetalKB: {metal}  '
                 f'threshold = {threshold} kcal/mol  '
-                f'expected = {expected_count}'
+                f'expected = {expectedCount}'
             )
             try:
                 subprocess.run(
@@ -424,72 +424,72 @@ class ProtMetalPlacer(EMProtocol):
                 )
                 placements.append({
                     'metal':           metal,
-                    'count_expected':  expected_count,
+                    'count_expected':  expectedCount,
                     'count_placed':    0,
                     'positions':       [],
-                    'coord_residues':  {},
+                    'coordResidues':  {},
                 })
                 continue
             except subprocess.TimeoutExpired:
                 self._log.warning(f'MetalKB timed out (120 s) for {metal}.')
                 placements.append({
                     'metal':          metal,
-                    'count_expected': expected_count,
+                    'count_expected': expectedCount,
                     'count_placed':   0,
                     'positions':      [],
-                    'coord_residues': {},
+                    'coordResidues': {},
                 })
                 continue
 
             # Rename outputs before next iteration to avoid overwrite
-            raw_pdb = self._getTmpPath('out.pdb')
-            raw_dat = self._getTmpPath('out.dat')
-            metal_pdb = self._getTmpPath(f'out_{metal}.pdb')
-            metal_dat = self._getTmpPath(f'out_{metal}.dat')
-            if os.path.exists(raw_pdb):
-                shutil.move(raw_pdb, metal_pdb)
-            if os.path.exists(raw_dat):
-                shutil.move(raw_dat, metal_dat)
+            rawPdb = self._getTmpPath('out.pdb')
+            rawDat = self._getTmpPath('out.dat')
+            metalPdb = self._getTmpPath(f'out_{metal}.pdb')
+            metalDat = self._getTmpPath(f'out_{metal}.dat')
+            if os.path.exists(rawPdb):
+                shutil.move(rawPdb, metalPdb)
+            if os.path.exists(rawDat):
+                shutil.move(rawDat, metalDat)
 
-            all_positions  = _parse_metalkb_positions(metal_pdb, metal)
-            coord_residues = _parse_metalkb_coordresidues(metal_dat)
+            allPositions  = self._parse_metalkb_positions(metalPdb, metal)
+            coordResidues = self._parse_metalkb_coordresidues(metalDat)
 
 
-            selected_orig_idx = []
+            selectedOrigIdx = []
             positions         = []
-            for orig_i, pos in enumerate(all_positions, start=1):
-                if len(positions) >= expected_count:
+            for origI, pos in enumerate(allPositions, start=1):
+                if len(positions) >= expectedCount:
                     break
-                if any(_dist3(pos, placed) < 1.5 for placed in all_placed_so_far):
+                if any(self._dist3(pos, placed) < 1.5 for placed in allPlacedSoFar):
                     self._log.info(
-                        f'{metal} site {orig_i} skipped ? within 1.5 Å of an '
+                        f'{metal} site {origI} skipped ? within 1.5 Å of an '
                         f'already-placed ion.'
                     )
                     continue
-                selected_orig_idx.append(orig_i)
+                selectedOrigIdx.append(origI)
                 positions.append(pos)
 
-            all_placed_so_far.extend(positions)
+            allPlacedSoFar.extend(positions)
 
-            # Keep only coord_residues for the placed sites, renumbered 1..N
-            coord_residues_placed = {}
-            for rank, orig_i in enumerate(selected_orig_idx, start=1):
-                key = str(orig_i)
-                if key in coord_residues:
-                    coord_residues_placed[str(rank)] = coord_residues[key]
+            # Keep only coordResidues for the placed sites, renumbered 1..N
+            coordResiduesPlaced = {}
+            for rank, origI in enumerate(selectedOrigIdx, start=1):
+                key = str(origI)
+                if key in coordResidues:
+                    coordResiduesPlaced[str(rank)] = coordResidues[key]
 
             # Assign each placed position to the nearest protein chain so the
             # viewer can build chain-specific PyMOL selections (chain A and resi ...)
-            chains = [_assign_chain(state['pdb_path'], pos) for pos in positions]
+            chains = [self._assign_chain(state['pdb_path'], pos) for pos in positions]
 
             if not positions:
                 self._log.warning(
                     f'MetalKB found no site for {metal} '
                     f'above {threshold} kcal/mol.'
                 )
-            elif len(positions) < expected_count:
+            elif len(positions) < expectedCount:
                 self._log.warning(
-                    f'MetalKB: {len(positions)}/{expected_count} '
+                    f'MetalKB: {len(positions)}/{expectedCount} '
                     f'{metal} site(s) found ? placing {len(positions)}.'
                 )
             else:
@@ -501,11 +501,11 @@ class ProtMetalPlacer(EMProtocol):
 
             placements.append({
                 'metal':          metal,
-                'count_expected': expected_count,
+                'count_expected': expectedCount,
                 'count_placed':   len(positions),
                 'positions':      positions,
                 'chains':         chains,
-                'coord_residues': coord_residues_placed,
+                'coordResidues': coordResiduesPlaced,
             })
 
         state['placements'] = placements
@@ -520,7 +520,7 @@ class ProtMetalPlacer(EMProtocol):
         placements = state.get('placements', [])
         placed     = [p for p in placements if p['count_placed'] > 0]
 
-        if not state.get('metals_to_place'):
+        if not state.get('metalsToPlace'):
             self._log.warning(
                 'No output: no homologue with metal found.\n'
                 'Consider lowering the identity cutoff or running '
@@ -536,8 +536,8 @@ class ProtMetalPlacer(EMProtocol):
             )
             return
 
-        out_pdb = self._getExtraPath('pseudo_holo.pdb')
-        _write_pseudo_holo(state['pdb_path'], placed, out_pdb)
+        outPdb = self._getExtraPath('pseudo_holo.pdb')
+        self._write_pseudo_holo(state['pdb_path'], placed, outPdb)
 
         summary = {
             'method':      'homology_metalkb',
@@ -548,18 +548,18 @@ class ProtMetalPlacer(EMProtocol):
         with open(self._getExtraPath('placer_result.json'), 'w') as f:
             json.dump(summary, f, indent=2)
 
-        out_struct = emobj.AtomStruct(filename=out_pdb)
-        self._defineOutputs(outputStructure=out_struct)
+        outStruct = emobj.AtomStruct(filename=outPdb)
+        self._defineOutputs(outputStructure=outStruct)
         self._defineRelation(pwobj.RELATION_SOURCE,
-                             self.inputStructure, out_struct)
+                             self.inputStructure, outStruct)
 
         for p in placed:
-            pos_str = '; '.join(
+            posStr = '; '.join(
                 str([round(v, 3) for v in pos]) for pos in p['positions'])
             print(
-                f'  {p["metal"]} × {p["count_placed"]}: {pos_str}'
+                f'  {p["metal"]} × {p["count_placed"]}: {posStr}'
             )
-        print(f'Pseudo-holo written: {out_pdb}')
+        print(f'Pseudo-holo written: {outPdb}')
 
 
     def _resolveMetalKBBin(self):
@@ -609,102 +609,102 @@ class ProtMetalPlacer(EMProtocol):
 
 # ?? Module helpers ????????????????????????????????????????????????????????????
 
-def _parse_metalkb_positions(out_pdb, metal):
-    """
-    Read ALL ions of *metal* from MetalKB's out.pdb.
-    MetalKB outputs them sorted by energy (most favourable first).
-    Returns list of [x, y, z].
-    """
-    positions = []
-    if not os.path.isfile(out_pdb):
+    def _parse_metalkb_positions(self,outPdb, metal):
+        """
+        Read ALL ions of *metal* from MetalKB's out.pdb.
+        MetalKB outputs them sorted by energy (most favourable first).
+        Returns list of [x, y, z].
+        """
+        positions = []
+        if not os.path.isfile(outPdb):
+            return positions
+        with open(outPdb) as fh:
+            for line in fh:
+                if line.startswith('HETATM') and metal in line[17:20]:
+                    try:
+                        positions.append([float(line[30:38]),
+                                          float(line[38:46]),
+                                          float(line[46:54])])
+                    except ValueError:
+                        pass
         return positions
-    with open(out_pdb) as fh:
-        for line in fh:
-            if line.startswith('HETATM') and metal in line[17:20]:
-                try:
-                    positions.append([float(line[30:38]),
-                                      float(line[38:46]),
-                                      float(line[46:54])])
-                except ValueError:
-                    pass
-    return positions
 
 
-def _parse_metalkb_coordresidues(out_dat):
-    """
-    Parse MetalKB's out.dat into {site_idx: [(resname, resnum), ...]}.
-    Format: <site_idx>   <RESNAME>   <resnum>
-    Keys are strings (consistent with JSON round-trip).
-    Used for the text summary; viewer uses geometric selection instead.
-    """
-    coord = {}
-    if not os.path.isfile(out_dat):
+    def _parse_metalkb_coordresidues(self,out_dat):
+        """
+        Parse MetalKB's out.dat into {site_idx: [(resname, resnum), ...]}.
+        Format: <site_idx>   <RESNAME>   <resnum>
+        Keys are strings (consistent with JSON round-trip).
+        Used for the text summary; viewer uses geometric selection instead.
+        """
+        coord = {}
+        if not os.path.isfile(out_dat):
+            return coord
+        with open(out_dat) as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) >= 3:
+                    try:
+                        idx     = str(int(parts[0]))   # string key, consistent with JSON
+                        resname = parts[1].upper()
+                        resnum  = parts[2]
+                        coord.setdefault(idx, []).append((resname, resnum))
+                    except ValueError:
+                        pass
         return coord
-    with open(out_dat) as fh:
-        for line in fh:
-            parts = line.split()
-            if len(parts) >= 3:
+
+
+    def _dist3(self,a, b):
+        """Euclidean distance between two [x, y, z] points."""
+        return ((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2) ** 0.5
+
+
+    def _assign_chain(self,pdb_path, position):
+        """
+        Return the chain ID of the CA atom nearest to *position* in *pdb_path*.
+        Used to associate a placed metal position with a protein chain so that
+        PyMOL coord-residue selections can be restricted to the correct chain.
+        """
+        min_d2   = float('inf')
+        best_ch  = 'A'
+        x0, y0, z0 = position
+        with open(pdb_path) as fh:
+            for line in fh:
+                if not line.startswith('ATOM'):
+                    continue
+                if line[12:16].strip() != 'CA':
+                    continue
                 try:
-                    idx     = str(int(parts[0]))   # string key, consistent with JSON
-                    resname = parts[1].upper()
-                    resnum  = parts[2]
-                    coord.setdefault(idx, []).append((resname, resnum))
+                    x  = float(line[30:38])
+                    y  = float(line[38:46])
+                    z  = float(line[46:54])
+                    d2 = (x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2
+                    if d2 < min_d2:
+                        min_d2  = d2
+                        best_ch = line[21].strip() or 'A'
                 except ValueError:
                     pass
-    return coord
+        return best_ch
 
 
-def _dist3(a, b):
-    """Euclidean distance between two [x, y, z] points."""
-    return ((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2) ** 0.5
-
-
-def _assign_chain(pdb_path, position):
-    """
-    Return the chain ID of the CA atom nearest to *position* in *pdb_path*.
-    Used to associate a placed metal position with a protein chain so that
-    PyMOL coord-residue selections can be restricted to the correct chain.
-    """
-    min_d2   = float('inf')
-    best_ch  = 'A'
-    x0, y0, z0 = position
-    with open(pdb_path) as fh:
-        for line in fh:
-            if not line.startswith('ATOM'):
-                continue
-            if line[12:16].strip() != 'CA':
-                continue
-            try:
-                x  = float(line[30:38])
-                y  = float(line[38:46])
-                z  = float(line[46:54])
-                d2 = (x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2
-                if d2 < min_d2:
-                    min_d2  = d2
-                    best_ch = line[21].strip() or 'A'
-            except ValueError:
-                pass
-    return best_ch
-
-
-def _write_pseudo_holo(query_pdb, placements, out_path):
-    """
-    Write the query PDB + one HETATM line per placed ion.
-    *placements* is a list of dicts with keys 'metal' and 'positions'.
-    """
-    with open(query_pdb) as fin, open(out_path, 'w') as fout:
-        for line in fin:
-            if line.startswith(('END', 'CONECT')):
-                continue
-            fout.write(line)
-        atom_idx = 1
-        for placement in placements:
-            metal = placement['metal']
-            for x, y, z in placement['positions']:
-                fout.write(
-                    f"HETATM{atom_idx:5d} {metal:<4s} {metal:<3s} A{atom_idx:4d}    "
-                    f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00          "
-                    f"{metal:>2s}\n"
-                )
-                atom_idx += 1
-        fout.write("END\n")
+    def _write_pseudo_holo(self,query_pdb, placements, out_path):
+        """
+        Write the query PDB + one HETATM line per placed ion.
+        *placements* is a list of dicts with keys 'metal' and 'positions'.
+        """
+        with open(query_pdb) as fin, open(out_path, 'w') as fout:
+            for line in fin:
+                if line.startswith(('END', 'CONECT')):
+                    continue
+                fout.write(line)
+            atom_idx = 1
+            for placement in placements:
+                metal = placement['metal']
+                for x, y, z in placement['positions']:
+                    fout.write(
+                        f"HETATM{atom_idx:5d} {metal:<4s} {metal:<3s} A{atom_idx:4d}    "
+                        f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00          "
+                        f"{metal:>2s}\n"
+                    )
+                    atom_idx += 1
+            fout.write("END\n")
