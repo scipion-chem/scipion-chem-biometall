@@ -24,3 +24,11 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
+
+from pwchem.wizards import SelectChainWizardQT
+from .protocols import *
+
+SelectChainWizardQT().addTarget(protocol=ProtMetalPlacer,
+                                   targets=['chainId'],
+                                   inputs=['inputStructure'],
+                                   outputs=['chainId'])

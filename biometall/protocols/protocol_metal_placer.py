@@ -66,10 +66,14 @@ from pyworkflow.protocol import Protocol, params
 from pyworkflow import BETA
 import pyworkflow.object as pwobj
 import pwem.objects as emobj
+from Bio.PDB import PDBParser, MMCIFParser
+from pwem.convert import cifToPdb
+from Bio.SeqUtils import seq1
 
 from ..scripts.homology_search import search_homologs
 from biometall import Plugin
 from biometall.constants import METALS_SUPPORTED
+from pwem.protocols import EMProtocol
 
 _STD_AA = {
     'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
@@ -78,7 +82,7 @@ _STD_AA = {
 }
 
 
-class ProtMetalPlacer(Protocol):
+class ProtMetalPlacer(EMProtocol):
     """
     Path 1: homology-based metal identification + MetalKB placement.
 
@@ -86,107 +90,137 @@ class ProtMetalPlacer(Protocol):
     in the RCSB PDB, then uses MetalKB (MESPEUS statistical potentials)
     to place each ion type in the query protein geometry.
     """
-    _label     = 'place metal ion(s) ? homology + MetalKB (Path 1)'
-    _devStatus = BETA
+    _label     = 'homology-based metal identification and MetalKB placement'
 
-    def __init__(self, **kwargs):
-        Protocol.__init__(self, **kwargs)
 
     def _defineParams(self, form):
         form.addSection(label='Input')
         form.addParam('inputStructure', params.PointerParam,
                       pointerClass='AtomStruct',
-                      label='Apo protein structure',
+                      label='Protein structure: ',
                       important=True,
                       help='PDB structure of the protein without metal ions.')
         form.addParam('chainId', params.StringParam,
-                      default='A',
-                      label='Chain ID',
-                      help='Protein chain for the homologue search.  Default: A.')
+                      label='Chain: ',
+                      help='Protein chain for the homologue search.')
 
-        form.addSection(label='Homologue search')
-        form.addParam('identityCutoff', params.FloatParam,
+        group = form.addGroup('Homologue search')
+        group.addParam('identityCutoff', params.FloatParam,
                       default=0.30,
-                      label='Min sequence identity',
+                      label='Min sequence identity: ',
                       help='Minimum fractional sequence identity (0.30 = 30 %).\n\n'
-                           'At ? 30 % identity the 3D fold and metal-binding site '
+                           'At 30 % identity the 3D fold and metal-binding site '
                            'are almost always conserved (Chothia & Lesk, 1986).\n\n'
                            'If no homologue is found above this threshold, the '
-                           'protocol stops with a warning ? no output is produced.')
-        form.addParam('evalueCutoff', params.FloatParam,
-                      default=1e-5,
-                      label='E-value cutoff',
+                           'protocol stops with a warning and no output is produced.')
+        group.addParam('evalueCutoff', params.FloatParam,
+                      default=1e-5, expertLevel=params.LEVEL_ADVANCED,
+                      label='E-value cutoff: ',
                       help='Maximum acceptable alignment e-value.\n'
                            '1e-5 = 1 in 100,000 chance of a random match.')
-        form.addParam('maxHomologs', params.IntParam,
+        group.addParam('maxHomologs', params.IntParam,
                       default=5,
-                      label='Max homologues to retrieve',
+                      label='Max homologs to retrieve: ',
                       help='Number of RCSB hits to fetch; the first with a '
                            'confirmed metal is used.')
-        form.addParam('metalFilter', params.EnumParam,
+        group.addParam('metalFilter', params.EnumParam,
                       choices=['ANY'] + METALS_SUPPORTED,
                       default=0,
-                      label='Metal to search for',
+                      label='Metal: ',
                       help='ANY: place all metal types found in the homologue '
                            '(multi-metal support).\n'
                            'Specific metal: restrict placement to that type only.')
 
-        form.addSection(label='MetalKB')
-        form.addParam('energyThreshold', params.FloatParam,
+        metal = form.addGroup('MetalKB params')
+        metal.addParam('energyThreshold', params.FloatParam,
                       default=-1.7,
-                      label='Energy threshold (kcal/mol)',
-                      help='MetalKB energy threshold (negative value; more negative '
+                      label='Energy threshold: ',
+                      help='MetalKB energy threshold (kcal/mol) (negative value; more negative '
                            '= stricter).  -1.7 kcal/mol is the standard threshold '
                            'for typical metal sites.  Values closer to 0 '
                            '(e.g. -1.5) also detect weaker or unusual sites.')
 
     def _insertAllSteps(self):
-        self._insertFunctionStep('extractSequenceStep',
-                                 self.inputStructure.get().getObjId())
+        self._insertFunctionStep('convertInputStep')
+        self._insertFunctionStep('extractSequenceStep')
         self._insertFunctionStep('searchHomologsStep')
         self._insertFunctionStep('runMetalKBStep')
         self._insertFunctionStep('createOutputStep')
 
-    # ?? STEP 1 ????????????????????????????????????????????????????????????????
+    def convertInputStep(self):
+        filePath = self.inputStructure.get().getFileName()
+        proteinName = os.path.splitext(
+            os.path.basename(filePath)
+        )[0]
+        ext = os.path.splitext(filePath)[1].lower()
+        outputFile = self._getExtraPath(
+            f'{proteinName}.pdb'
+        )
+        if ext == '.pdb':
+            shutil.copy(filePath, outputFile)
+        elif ext == '.cif':
+            cifToPdb(filePath, outputFile)
 
-    def extractSequenceStep(self, inputId):
-        pdb_path = self.inputStructure.get().getFileName()
-        chain_id = (self.chainId.get() or 'A').strip().upper()
+    def extractSequenceStep(self):
+        original_file = self.inputStructure.get().getFileName()
+        proteinName = os.path.splitext(os.path.basename(original_file))[0]
+        structure_file = self._getExtraPath(f'{proteinName}.pdb'
+                                            )
         try:
-            from Bio.PDB import PDBParser
-            from Bio.SeqUtils import seq1
-        except ImportError:
-            raise RuntimeError('BioPython is required.')
+            chain_info = json.loads(self.chainId.get())
+            chain_id = chain_info['chain']
+        except (json.JSONDecodeError, TypeError, KeyError):
+            chain_id = self.chainId.get().strip()
 
-        parser    = PDBParser(QUIET=True)
-        structure = parser.get_structure('query', pdb_path)
-        model     = structure[0]
-        available = [c.id for c in model]
-        if chain_id not in available:
-            self._log.warning(f'Chain {chain_id} not found; using {available[0]}')
-            chain_id = available[0]
+        ext = os.path.splitext(structure_file)[1].lower()
 
-        chain    = model[chain_id]
-        residues = [r for r in chain
-                    if r.get_resname().strip().upper() in _STD_AA]
+        if ext in ('.cif', '.mmcif'):
+            parser = MMCIFParser(QUIET=True)
+        else:
+            parser = PDBParser(QUIET=True)
+
+        structure = parser.get_structure('query', structure_file)
+        model = structure[0]
+
+        if chain_id not in model:
+            raise RuntimeError(
+                f'Chain {chain_id} not found in input structure.'
+            )
+
+        chain = model[chain_id]
+
+        residues = [
+            r for r in chain
+            if r.get_resname().strip().upper() in _STD_AA
+        ]
+
         if not residues:
-            raise RuntimeError(f'No standard amino acids in chain {chain_id}.')
+            raise RuntimeError(
+                f'No standard amino acids in chain {chain_id}.'
+            )
 
-        sequence = ''.join(seq1(r.get_resname().strip()) for r in residues)
-        state    = {
-            'sequence':        sequence,
-            'chain_id':        chain_id,
-            'pdb_path':        pdb_path,
+        sequence = ''.join(
+            seq1(r.get_resname().strip().upper())
+            for r in residues
+        )
+
+        state = {
+            'sequence': sequence,
+            'chain_id': chain_id,
+            'pdb_path': structure_file,
             'metals_to_place': {},
-            'homolog':         None,
-            'identity':        None,
-            'placements':      [],
+            'homolog': None,
+            'identity': None,
+            'placements': [],
         }
+
         with open(self._getTmpPath('placer_state.json'), 'w') as f:
             json.dump(state, f)
-        self._log.info(f'Sequence: {len(sequence)} aa, chain {chain_id}.')
 
-    # ?? STEP 2 ????????????????????????????????????????????????????????????????
+        self._log.info(
+            f'Sequence: {len(sequence)} aa, chain {chain_id}.'
+        )
+
 
     def searchHomologsStep(self):
         with open(self._getTmpPath('placer_state.json')) as f:
@@ -215,7 +249,7 @@ class ProtMetalPlacer(Protocol):
 
         if not hits:
             self._log.warning(
-                f'No homologue with ? {self.identityCutoff.get():.0%} identity '
+                f'No homologue with {self.identityCutoff.get():.0%} identity '
                 f'and a metal ion found in the PDB.\n'
                 f'The protein may be a novel metalloprotein with no close '
                 f'structural relatives. Manual inspection is recommended.'
@@ -246,7 +280,6 @@ class ProtMetalPlacer(Protocol):
         with open(self._getTmpPath('placer_state.json'), 'w') as f:
             json.dump(state, f)
 
-    # ?? STEP 3 ????????????????????????????????????????????????????????????????
 
     def runMetalKBStep(self):
         with open(self._getTmpPath('placer_state.json')) as f:
@@ -262,8 +295,6 @@ class ProtMetalPlacer(Protocol):
         if not os.path.isfile(metalkb):
             raise RuntimeError(
                 f'MetalKB binary not found: {metalkb}\n'
-                'Set the path in the MetalKB section, or install via:\n'
-                '  scipion3 installb metalkb'
             )
 
         input_pdb = self._getTmpPath('input.pdb')
@@ -379,7 +410,6 @@ class ProtMetalPlacer(Protocol):
         with open(self._getTmpPath('placer_state.json'), 'w') as f:
             json.dump(state, f)
 
-    # ?? STEP 4 ????????????????????????????????????????????????????????????????
 
     def createOutputStep(self):
         with open(self._getTmpPath('placer_state.json')) as f:
@@ -424,12 +454,11 @@ class ProtMetalPlacer(Protocol):
         for p in placed:
             pos_str = '; '.join(
                 str([round(v, 3) for v in pos]) for pos in p['positions'])
-            self._log.info(
+            print(
                 f'  {p["metal"]} × {p["count_placed"]}: {pos_str}'
             )
-        self._log.info(f'Pseudo-holo written: {out_pdb}')
+        print(f'Pseudo-holo written: {out_pdb}')
 
-    # ?? Helpers ???????????????????????????????????????????????????????????????
 
     def _resolveMetalKBBin(self):
         return Plugin.getMetalKBBin()

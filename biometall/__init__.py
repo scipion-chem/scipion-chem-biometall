@@ -80,12 +80,7 @@ class Plugin(pwchemPlugin):
             packageHome=cls.getVar(METALKB_DIC['home']),
             packageVersion=METALKB_DIC['version'],
         )
-        installer.getCondaEnvCommand(
-            METALKB_DIC['name'],
-            binaryVersion=METALKB_DIC['version'],
-            pythonVersion='3.11',
-        ).addCommand(
-            f"{cls.getEnvActivationCommand(METALKB_DIC)} && "
+        installer.addCommand(
             "git clone --depth=1 "
             "https://github.com/huang-laboratory/MetalKB.git MetalKB_repo && "
             "cp MetalKB_repo/MetalKB ./MetalKB_binary && "
@@ -123,6 +118,11 @@ class Plugin(pwchemPlugin):
             'METALPLACER_MODELS_DIR',
             os.path.join(cls.getML0Dir(), 'models'),
         )
+
+    @classmethod
+    def getMetalKBBin(cls):
+        """Return the full path to the MetalKB_binary executable."""
+        return os.path.join(cls.getVar(METALKB_DIC['home']), 'MetalKB_binary')
 
     @classmethod
     def getConfigPath(cls):
