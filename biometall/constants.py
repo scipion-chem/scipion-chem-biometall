@@ -27,3 +27,6 @@
 
 BIOMETALL_DIC = {'name': 'biometall', 'version': '1.0', 'home': 'BIOMETALL_HOME'}
 
+METALKB_DIC   = {'name': 'metalkb',   'version': '1.0', 'home': 'METALKB_HOME'}
+METALS_SUPPORTED = ['ZN', 'CA', 'MG', 'FE', 'CU', 'MN', 'NI']
+

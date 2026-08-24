@@ -288,12 +288,16 @@ class ProtBioMetAll(EMProtocol):
         solutions = {}
         inputPdb = self._getPath('probes_biometall.pdb')
 
-        with open(inputPdb, 'r') as f:
-            for line in f:
-                if not line.startswith(('ATOM', 'HETATM')):
-                    continue
-                solution_id = int(line[22:26].strip())
-                solutions.setdefault(solution_id, []).append(line)
+        try:
+            with open(inputPdb, 'r') as f:
+                for line in f:
+                    if not line.startswith(('ATOM', 'HETATM')):
+                        continue
+                    solution_id = int(line[22:26].strip())
+                    solutions.setdefault(solution_id, []).append(line)
+        except FileNotFoundError:
+            print('No probes found')
+            return
 
         for solution_id, lines in solutions.items():
             output_file = os.path.join(
