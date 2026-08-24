@@ -30,7 +30,7 @@ from pyworkflow.tests import setupTestProject, DataSet, BaseTest
 from pwchem.protocols import  ProtChemPrepareReceptor
 from pwchem.utils import assertHandle
 from pwem.protocols import ProtImportPdb
-from ..protocols import ProtBioMetAll
+from ..protocols import ProtBioMetAll, ProtMetalScreener, ProtMetalPlacer
 
 
 class TestBioMetAll(BaseTest):
@@ -47,7 +47,7 @@ class TestBioMetAll(BaseTest):
     def _runImportPDB(cls):
         protImportPDB = cls.newProtocol(
             ProtImportPdb,
-            inputPdbData=1, pdbFile=cls.ds.getFile('PDBx_mmCIF/5ni1.pdb'))
+            inputPdbData=0, pdbId='1ca2')
         cls.launchProtocol(protImportPDB)
         cls.protImportPDB = protImportPDB
 
@@ -60,15 +60,87 @@ class TestBioMetAll(BaseTest):
         cls.proj.launchProtocol(protPrepRec, wait=True)
         cls.protPrepRec = protPrepRec
 
+    @classmethod
     def _runBioMetAll(cls):
-        protBiometall = cls.newProtocol(ProtBioMetAll,
-                                        inputStructure=cls.protPrepRec.outputStructure,
-                                        cutoff=0.5)
+        protBiometall = cls.newProtocol(
+            ProtBioMetAll,
+            inputStructure=cls.protPrepRec.outputStructure,
+            cutoff=0.5
+        )
 
         cls.proj.launchProtocol(protBiometall, wait=True)
-        return protBiometall
+        cls.protBiometall = protBiometall
 
     def test(self):
-        protBiometall = self._runBioMetAll()
-        self._waitOutput(protBiometall, 'outputStructROIs', sleepTime=10)
-        assertHandle(self.assertIsNotNone, getattr(protBiometall, 'outputStructROIs', None))
+        self._waitOutput(self.protBiometall, 'outputStructROIs', sleepTime=10)
+        assertHandle(self.assertIsNotNone, getattr(self.protBiometall, 'outputStructROIs', None))
+
+class TestScreening(TestBioMetAll):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls._runBioMetAll()
+        cls._runScreen()
+
+    @classmethod
+    def _runScreen(cls):
+        protScreen = cls.newProtocol(
+            ProtMetalScreener,
+            inputSites=cls.protBiometall.outputStructROIs
+        )
+
+        cls.proj.launchProtocol(protScreen, wait=True)
+        cls.protScreen = protScreen
+
+    def test(self):
+        self._waitOutput(self.protScreen, 'outputStructROIs', sleepTime=10)
+        assertHandle(self.assertIsNotNone, getattr(self.protScreen, 'outputStructROIs', None))
+
+class TestMetalPlacer(BaseTest):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.ds = DataSet.getDataSet('model_building_tutorial')
+        setupTestProject(cls)
+
+        cls._runImportPDB()
+        cls._runPrepareTarget()
+        cls._runPlacer()
+
+    @classmethod
+    def _runImportPDB(cls):
+        protImportPDB = cls.newProtocol(
+            ProtImportPdb,
+            inputPdbData=0,
+            pdbId='1ca2'
+        )
+        cls.launchProtocol(protImportPDB)
+        cls.protImportPDB = protImportPDB
+
+    @classmethod
+    def _runPrepareTarget(cls):
+        protPrepRec = cls.newProtocol(
+            ProtChemPrepareReceptor,
+            inputAtomStruct=cls.protImportPDB.outputPdb
+        )
+        cls.proj.launchProtocol(protPrepRec, wait=True)
+        cls.protPrepRec = protPrepRec
+
+    @classmethod
+    def _runPlacer(cls):
+        protPlacer = cls.newProtocol(
+            ProtMetalPlacer,
+            inputStructure=cls.protPrepRec.outputStructure,
+            chainId='{"model": 0, "chain": "A", "residues": 256}',
+            metalFilter=1
+        )
+
+        cls.proj.launchProtocol(protPlacer, wait=True)
+        cls.protPlacer = protPlacer
+
+    def test(self):
+        self._waitOutput(self.protPlacer,'outputStructure', sleepTime=10)
+        assertHandle(self.assertIsNotNone,getattr(self.protPlacer, 'outputStructure', None))
