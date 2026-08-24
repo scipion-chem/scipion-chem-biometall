@@ -84,11 +84,113 @@ _STD_AA = {
 
 class ProtMetalPlacer(EMProtocol):
     """
-    Path 1: homology-based metal identification + MetalKB placement.
+    Predicts metal-binding sites in a protein structure using BioMetAll and
+    MetalKB guided by homologous metalloproteins.
 
-    Identifies metal type(s) from an experimentally determined homologue
-    in the RCSB PDB, then uses MetalKB (MESPEUS statistical potentials)
-    to place each ion type in the query protein geometry.
+    The protocol identifies homologous proteins with experimentally determined
+    metal ions in the Protein Data Bank (PDB), infers the most likely metal
+    type(s) present in the query protein, and predicts their positions using
+    MetalKB statistical potentials.
+
+    Workflow
+    --------
+    1. Receive a protein structure without metal ions.
+    2. Convert the structure to PDB format if necessary.
+    3. Extract the amino acid sequence from the selected chain.
+    4. Search the Protein Data Bank for homologous metalloproteins satisfying
+       the user-defined sequence identity and e-value thresholds.
+    5. Determine the metal type(s) and number of ions present in the best
+       homolog.
+    6. Run MetalKB independently for each predicted metal type.
+    7. Select the highest-scoring metal-binding sites according to the expected
+       number of ions and discard duplicate placements.
+    8. Generate a pseudo-holo structure by adding the predicted metal ions to
+       the original protein structure.
+
+    Input
+    -----
+    - inputStructure:
+        Protein structure for which metal ions will be predicted.
+
+        The structure should correspond to the apo form (without metal ions).
+
+    - chainId:
+        Protein chain used for sequence extraction and homology search.
+
+    Parameters
+    ----------
+    Homologue search
+
+    - Min sequence identity:
+        Minimum sequence identity required for homologues retrieved from the
+        Protein Data Bank.
+
+        The default value is 30%, a commonly accepted threshold for structural
+        conservation of protein folds and many metal-binding sites.
+
+    - E-value cutoff:
+        Maximum acceptable sequence alignment E-value.
+
+    - Max homologues to retrieve:
+        Maximum number of homologous structures inspected before selecting the
+        first metalloprotein satisfying the search criteria.
+
+    - Metal:
+        Metal type to place.
+
+        *ANY* predicts all metal species identified in the selected homolog,
+        while selecting a specific metal restricts the prediction to that metal.
+
+    MetalKB
+
+    - Energy threshold:
+        MetalKB energy threshold used to accept predicted metal-binding sites.
+
+        More negative values produce stricter predictions, whereas values closer
+        to zero allow weaker candidate sites.
+
+    Output
+    ------
+    - outputStructure:
+        Pseudo-holo protein structure containing the predicted metal ions
+        inserted as HETATM records.
+
+    - placer_result.json:
+        Summary of the prediction containing:
+
+        - Selected homolog
+        - Sequence identity
+        - Predicted metal type(s)
+        - Expected and placed ions
+        - Coordinates of the predicted metal ions
+        - Coordinating residues associated with each predicted site
+
+    Summary
+    -------
+    The protocol reports:
+
+    - Selected homolog and sequence identity.
+    - Number of predicted metal-binding sites for each metal type.
+    - Expected versus successfully placed metal ions.
+
+    Use Cases
+    ---------
+    - Restoring missing metal ions in predicted protein structures.
+    - Building pseudo-holo models from apo structures.
+    - Predicting biologically relevant metal-binding sites through homology.
+    - Preparing metalloprotein models for structural analysis or simulation.
+
+    Notes
+    -----
+    Metal identities are inferred from experimentally determined homologous
+    structures deposited in the Protein Data Bank.
+
+    Metal positions are predicted using MetalKB statistical potentials rather
+    than copied directly from the homologous structure.
+
+    If no suitable metalloprotein homolog is found, or if MetalKB cannot
+    identify energetically favorable binding sites, no output structure is
+    generated.
     """
     _label     = 'homology-based metal identification and MetalKB placement'
 
@@ -120,7 +222,7 @@ class ProtMetalPlacer(EMProtocol):
                            '1e-5 = 1 in 100,000 chance of a random match.')
         group.addParam('maxHomologs', params.IntParam,
                       default=5,
-                      label='Max homologs to retrieve: ',
+                      label='Max homologues to retrieve: ',
                       help='Number of RCSB hits to fetch; the first with a '
                            'confirmed metal is used.')
         group.addParam('metalFilter', params.EnumParam,
