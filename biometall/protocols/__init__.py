@@ -5,4 +5,3 @@
 # **************************************************************************
 from .protocol_biometall import ProtBioMetAll
 from .protocol_metal_placer import ProtMetalPlacer
-from .protocol_metal_screener import ProtMetalScreener

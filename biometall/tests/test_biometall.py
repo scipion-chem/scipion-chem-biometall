@@ -30,7 +30,7 @@ from pyworkflow.tests import setupTestProject, DataSet, BaseTest
 from pwchem.protocols import  ProtChemPrepareReceptor
 from pwchem.utils import assertHandle
 from pwem.protocols import ProtImportPdb
-from ..protocols import ProtBioMetAll, ProtMetalScreener, ProtMetalPlacer
+from ..protocols import ProtBioMetAll, ProtMetalPlacer
 
 
 class TestBioMetAll(BaseTest):
@@ -42,6 +42,7 @@ class TestBioMetAll(BaseTest):
 
         cls._runImportPDB()
         cls._runPrepareTarget()
+        cls._runBioMetAll()
 
     @classmethod
     def _runImportPDB(cls):
@@ -74,28 +75,6 @@ class TestBioMetAll(BaseTest):
     def test(self):
         self._waitOutput(self.protBiometall, 'outputStructROIs', sleepTime=10)
         assertHandle(self.assertIsNotNone, getattr(self.protBiometall, 'outputStructROIs', None))
-
-class TestScreening(TestBioMetAll):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        cls._runBioMetAll()
-        cls._runScreen()
-
-    @classmethod
-    def _runScreen(cls):
-        protScreen = cls.newProtocol(
-            ProtMetalScreener,
-            inputSites=cls.protBiometall.outputStructROIs
-        )
-
-        cls.proj.launchProtocol(protScreen, wait=True)
-        cls.protScreen = protScreen
-
-    def test(self):
-        self._waitOutput(self.protScreen, 'outputStructROIs', sleepTime=10)
-        assertHandle(self.assertIsNotNone, getattr(self.protScreen, 'outputStructROIs', None))
 
 class TestMetalPlacer(BaseTest):
 
